@@ -1,0 +1,22 @@
+{
+  "name": "jsonify",
+  "version": "1.0.0",
+  "description": "Downloads course content into JSON",
+  "scripts": {
+    "build": "npx tsc",
+    "start": "npm run build && node dist/index.js"
+  },
+  "author": "Anton Venema",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.3"
+  },
+  "dependencies": {
+    "chalk": "4.1.2",
+    "commander": "^12.1.0",
+    "node-html-parser": "^6.1.13",
+    "sanitize-filename": "^1.6.3"
+  }
+}
