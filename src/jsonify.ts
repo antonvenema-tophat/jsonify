@@ -6,28 +6,28 @@ interface Output {
 }
 
 interface Textbook {
+  chapters: Chapter[];
   for: string;
   title?: string;
-  chapters: Chapter[];
 }
 
 interface Chapter {
-  title: string;
-  elements: Element[];
+  html: string;
   sections: Section[];
+  title: string;
 }
 
 interface Section {
+  html: string;
   title: string;
-  elements: Element[];
-}
-
-interface Element {
-  type: string;
-  text: string;
 }
 
 const jsonify = async (o: Options) => {
+  if (!o.url.startsWith("https://2012books.lardbucket.org/")) {
+    console.error(chalk.stderr.red("URL must start with https://2012books.lardbucket.org/."));
+    return;
+  }
+
   const output: Output = {
     content: {
       for: "lecture",
@@ -35,47 +35,83 @@ const jsonify = async (o: Options) => {
     }
   };
 
-  console.log(chalk.green(`Fetching ${o.url}...`));
+  console.error(chalk.stderr.green(`Fetching ${o.url}...`));
   const response = await fetch(o.url);
   const html = await response.text();
   
-  console.log(chalk.green(`Parsing HTML...`));
-  const root = parse(html);
-  const content = root.querySelector("#book-content");
-  const title = content?.querySelector("h1")?.text;
+  console.error(chalk.stderr.green(`Parsing HTML...`));
+  const rootElement = parse(html);
+  const contentElement = rootElement.querySelector("#book-content");
+  const title = contentElement?.querySelector("h1")?.text;
   
-  console.log(chalk.blue(title));
+  console.error(chalk.stderr.blue(title));
+
   output.content.title = title;
   
-  const chapters = content?.querySelector("#toc-top-ul");
-  for (const chapterNode of chapters?.childNodes || []) {
+  const chapterNodeList = contentElement?.querySelector("#toc-top-ul");
+  for (const chapterNode of chapterNodeList?.childNodes || []) {
     if (!(chapterNode instanceof HTMLElement)) continue;
     
-    const chapter = chapterNode as HTMLElement;
-    if (!chapter.tagName) continue;
+    const chapterElement = chapterNode as HTMLElement;
+    if (!chapterElement.tagName) continue;
     
-    const chapterTitle = chapter.querySelector("a")?.text;
+    const chapterTitle = chapterElement.querySelector("a")?.text;
     if (!chapterTitle) continue;
 
-    const chapterUrl = chapter.querySelector("a")?.getAttribute("href");
+    const chapterUrlRaw = chapterElement.querySelector("a")?.getAttribute("href");
+    if (!chapterUrlRaw) continue;
+    const chapterUrl = new URL(chapterUrlRaw, o.url).href;
 
-    console.log(chalk.blueBright(`  ${chapterTitle} (${chapterUrl})`));
+    console.error(chalk.stderr.blueBright(`  ${chapterTitle} (${chapterUrl})`));
 
-    const sections = chapter.querySelector("ul");
-    for (const sectionNode of sections?.childNodes || []) {
+    const chapter: Chapter = {
+      html: "",
+      sections: [],
+      title: chapterTitle,
+    };
+    output.content.chapters.push(chapter);
+
+    const chapterResponse = await fetch(chapterUrl);
+    const chapterHtml = await chapterResponse.text();
+    const chapterRootElement = parse(chapterHtml);
+    const chapterContentElement = chapterRootElement.querySelector("#book-content")?.querySelector("div");
+    if (!chapterContentElement) continue;
+
+    chapter.html = chapterContentElement.toString();
+
+    const sectionNodeList = chapterElement.querySelector("ul");
+    for (const sectionNode of sectionNodeList?.childNodes || []) {
       if (!(sectionNode instanceof HTMLElement)) continue;
 
-      const section = sectionNode as HTMLElement;
-      if (!section.tagName) continue;
+      const sectionElement = sectionNode as HTMLElement;
+      if (!sectionElement.tagName) continue;
 
-      const sectionTitle = section.querySelector("a")?.text;
+      const sectionTitle = sectionElement.querySelector("a")?.text;
       if (!sectionTitle) continue;
 
-      const sectionUrl = section.querySelector("a")?.getAttribute("href");
+      const sectionUrlRaw = sectionElement.querySelector("a")?.getAttribute("href");
+      if (!sectionUrlRaw) continue;
+      const sectionUrl = new URL(sectionUrlRaw, o.url).href;
 
-      console.log(chalk.cyan(`    ${sectionTitle} (${sectionUrl})`));
+      console.error(chalk.stderr.cyan(`    ${sectionTitle} (${sectionUrl})`));
+
+      const section: Section = {
+        html: "",
+        title: sectionTitle,
+      };
+      chapter.sections.push(section);
+
+      const sectionResponse = await fetch(sectionUrl);
+      const sectionHtml = await sectionResponse.text();
+      const sectionRootElement = parse(sectionHtml);
+      const sectionContentElement = sectionRootElement.querySelector("#book-content")?.querySelector("div");
+      if (!sectionContentElement) continue;
+
+      section.html = chapterContentElement.toString();
     }
   }
+
+  console.log(JSON.stringify(output, null, 2));
 };
 
 export { jsonify };
